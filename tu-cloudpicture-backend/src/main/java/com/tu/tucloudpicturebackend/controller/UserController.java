@@ -100,7 +100,7 @@ public class UserController {
     public BaseResponse<User> getUserById(long id) {
         ThrowsUtils.throwIf(id <= 0, ErrorCode.PARAMS_ERROR);
         User user = userService.getById(id);
-        ThrowsUtils.throwIf(user == null, ErrorCode.NOT_FOUNT_ERROR);
+        ThrowsUtils.throwIf(user == null, ErrorCode.NOT_FOUND_ERROR);
         return ResultUtils.success(user);
     }
 

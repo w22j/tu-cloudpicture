@@ -1,5 +1,7 @@
 package com.tu.tucloudpicturebackend.model.vo;
 
+import cn.hutool.core.bean.BeanUtil;
+import com.tu.tucloudpicturebackend.model.entity.User;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -63,4 +65,14 @@ public class UserVO implements Serializable {
     private Date createTime;
 
     private static final long serialVersionUID = 1L;
+
+
+    public static UserVO objToVo(User user) {
+        if (user == null) {
+            return null;
+        }
+        UserVO userVO = new UserVO();
+        BeanUtil.copyProperties(user, userVO);
+        return userVO;
+    }
 }
