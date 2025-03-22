@@ -85,6 +85,30 @@ public class Picture {
     private Long userId;
 
     /**
+     * 审核状态：0-待审核; 1-通过; 2-拒绝
+     */
+    @TableField(value = "reviewStatus")
+    private Integer reviewStatus;
+
+    /**
+     * 审核信息
+     */
+    @TableField(value = "reviewMessage")
+    private String reviewMessage;
+
+    /**
+     * 审核人 ID
+     */
+    @TableField(value = "reviewerId")
+    private Long reviewerId;
+
+    /**
+     * 审核时间
+     */
+    @TableField(value = "reviewTime")
+    private Date reviewTime;
+
+    /**
      * 创建时间
      */
     @TableField(value = "createTime")

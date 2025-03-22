@@ -8,18 +8,18 @@ import com.tu.tucloudpicturebackend.common.DeleteRequest;
 import com.tu.tucloudpicturebackend.common.ErrorCode;
 import com.tu.tucloudpicturebackend.constant.UserConstant;
 import com.tu.tucloudpicturebackend.exception.BusinessException;
-import com.tu.tucloudpicturebackend.model.dto.picture.PictureEditRequest;
-import com.tu.tucloudpicturebackend.model.dto.picture.PictureQueryRequest;
-import com.tu.tucloudpicturebackend.model.dto.picture.PictureUpdateRequest;
-import com.tu.tucloudpicturebackend.model.dto.picture.PictureUploadRequest;
+import com.tu.tucloudpicturebackend.model.dto.picture.*;
 import com.tu.tucloudpicturebackend.model.entity.Picture;
 import com.tu.tucloudpicturebackend.model.entity.User;
+import com.tu.tucloudpicturebackend.model.enums.PictureReviewStatusEnum;
 import com.tu.tucloudpicturebackend.model.vo.PictureTagCategory;
 import com.tu.tucloudpicturebackend.model.vo.PictureVO;
 import com.tu.tucloudpicturebackend.service.PictureService;
 import com.tu.tucloudpicturebackend.service.UserService;
 import com.tu.tucloudpicturebackend.utils.ResultUtils;
 import com.tu.tucloudpicturebackend.utils.ThrowsUtils;
+import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiOperation;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.web.bind.annotation.*;
@@ -35,6 +35,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/picture")
 @Slf4j
+@Api(tags = "图片管理")
 public class PictureController {
 
     @Resource
@@ -43,16 +44,26 @@ public class PictureController {
     @Resource
     private PictureService pictureService;
 
-    @PostMapping("uploadPicture")
-    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    @PostMapping("/upload")
+//    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    @ApiOperation(value = "根据文件上传")
     public BaseResponse<PictureVO> uploadPicture(@RequestPart("file") MultipartFile file, PictureUploadRequest pictureUploadRequest, HttpServletRequest request) {
         User loginUser = userService.getLoginUser(request);
         PictureVO pictureVO = pictureService.uploadPicture(file, pictureUploadRequest, loginUser);
         return ResultUtils.success(pictureVO);
     }
 
+    @PostMapping("/upload/url")
+    @ApiOperation(value = "根据文件url地址上传")
+    public BaseResponse<PictureVO> uploadPictureByUrl(@RequestBody PictureUploadRequest pictureUploadRequest, HttpServletRequest request) {
+        User loginUser = userService.getLoginUser(request);
+        String fileUrl = pictureUploadRequest.getFileUrl();
+        PictureVO pictureVO = pictureService.uploadPicture(fileUrl, pictureUploadRequest, loginUser);
+        return ResultUtils.success(pictureVO);
+    }
+
     /**
-     * 删除图片  
+     * 删除图片
      */
     @PostMapping("/delete")
     public BaseResponse<Boolean> deletePicture(@RequestBody DeleteRequest deleteRequest, HttpServletRequest request) {
@@ -75,11 +86,11 @@ public class PictureController {
     }
 
     /**
-     * 更新图片（仅管理员可用）  
+     * 更新图片（仅管理员可用）
      */
     @PostMapping("/update")
     @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
-    public BaseResponse<Boolean> updatePicture(@RequestBody PictureUpdateRequest pictureUpdateRequest) {
+    public BaseResponse<Boolean> updatePicture(@RequestBody PictureUpdateRequest pictureUpdateRequest, HttpServletRequest request) {
         if (pictureUpdateRequest == null || pictureUpdateRequest.getId() <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
@@ -94,6 +105,8 @@ public class PictureController {
         long id = pictureUpdateRequest.getId();
         Picture oldPicture = pictureService.getById(id);
         ThrowsUtils.throwIf(oldPicture == null, ErrorCode.NOT_FOUND_ERROR);
+        // 设置审核参数 （修改图片重新进入待审核）
+        pictureService.fillReviewParams(picture, userService.getLoginUser(request));
         // 操作数据库  
         boolean result = pictureService.updateById(picture);
         ThrowsUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
@@ -101,7 +114,7 @@ public class PictureController {
     }
 
     /**
-     * 根据 id 获取图片（仅管理员可用）  
+     * 根据 id 获取图片（仅管理员可用）
      */
     @GetMapping("/get")
     @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
@@ -115,7 +128,7 @@ public class PictureController {
     }
 
     /**
-     * 根据 id 获取图片（封装类）  
+     * 根据 id 获取图片（封装类）
      */
     @GetMapping("/get/vo")
     public BaseResponse<PictureVO> getPictureVOById(long id, HttpServletRequest request) {
@@ -128,7 +141,7 @@ public class PictureController {
     }
 
     /**
-     * 分页获取图片列表（仅管理员可用）  
+     * 分页获取图片列表（仅管理员可用）
      */
     @PostMapping("/list/page")
     @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
@@ -142,7 +155,7 @@ public class PictureController {
     }
 
     /**
-     * 分页获取图片列表（封装类）  
+     * 分页获取图片列表（封装类）
      */
     @PostMapping("/list/page/vo")
     public BaseResponse<Page<PictureVO>> listPictureVOByPage(@RequestBody PictureQueryRequest pictureQueryRequest,
@@ -151,6 +164,8 @@ public class PictureController {
         long size = pictureQueryRequest.getPageSize();
         // 限制爬虫  
         ThrowsUtils.throwIf(size > 20, ErrorCode.PARAMS_ERROR);
+        // 用户只能查看已审核通过的图片
+        pictureQueryRequest.setReviewStatus(PictureReviewStatusEnum.PASS.getValue());
         // 查询数据库  
         Page<Picture> picturePage = pictureService.page(new Page<>(current, size),
                 pictureService.getQueryWrapper(pictureQueryRequest));
@@ -159,7 +174,7 @@ public class PictureController {
     }
 
     /**
-     * 编辑图片（给用户使用）  
+     * 编辑图片（给用户使用）
      */
     @PostMapping("/edit")
     public BaseResponse<Boolean> editPicture(@RequestBody PictureEditRequest pictureEditRequest, HttpServletRequest request) {
@@ -184,6 +199,8 @@ public class PictureController {
         if (!oldPicture.getUserId().equals(loginUser.getId()) && !userService.isAdmin(loginUser)) {
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
         }
+        // 设置审核参数 （修改图片重新进入待审核）
+        pictureService.fillReviewParams(picture, userService.getLoginUser(request));
         // 操作数据库  
         boolean result = pictureService.updateById(picture);
         ThrowsUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
@@ -198,6 +215,14 @@ public class PictureController {
         pictureTagCategory.setTagList(tagList);
         pictureTagCategory.setCategoryList(categoryList);
         return ResultUtils.success(pictureTagCategory);
+    }
+
+    @PostMapping("/review")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    public BaseResponse<Boolean> doPictureReview(@RequestBody PictureReviewRequest pictureReviewRequest, HttpServletRequest request) {
+        User loginUser = userService.getLoginUser(request);
+        pictureService.doPictureReview(pictureReviewRequest, loginUser);
+        return ResultUtils.success(true);
     }
 
 

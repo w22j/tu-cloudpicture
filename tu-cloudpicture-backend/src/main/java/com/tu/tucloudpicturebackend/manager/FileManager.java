@@ -22,6 +22,7 @@ import java.util.List;
 
 @Component
 @Slf4j
+@Deprecated
 public class FileManager {
 
 
