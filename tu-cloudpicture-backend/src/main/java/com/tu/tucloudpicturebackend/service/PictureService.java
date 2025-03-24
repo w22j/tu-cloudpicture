@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.tu.tucloudpicturebackend.model.dto.picture.PictureQueryRequest;
 import com.tu.tucloudpicturebackend.model.dto.picture.PictureReviewRequest;
+import com.tu.tucloudpicturebackend.model.dto.picture.PictureUploadByBatchRequest;
 import com.tu.tucloudpicturebackend.model.dto.picture.PictureUploadRequest;
 import com.tu.tucloudpicturebackend.model.entity.Picture;
 import com.tu.tucloudpicturebackend.model.entity.User;
@@ -54,4 +55,13 @@ public interface PictureService extends IService<Picture> {
      * @param loginUser
      */
     void fillReviewParams(Picture picture, User loginUser);
+
+    /**
+     * 批量抓取和上传图片
+     * @param pictureUploadByBatchRequest
+     * @param loginUser
+     * @return
+     */
+    int uploadPictureByBatch(PictureUploadByBatchRequest pictureUploadByBatchRequest, User loginUser);
+
 }

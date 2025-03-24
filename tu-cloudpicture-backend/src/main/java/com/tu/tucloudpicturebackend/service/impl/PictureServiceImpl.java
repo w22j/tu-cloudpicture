@@ -16,6 +16,7 @@ import com.tu.tucloudpicturebackend.mapper.PictureMapper;
 import com.tu.tucloudpicturebackend.model.dto.file.UploadPictureResult;
 import com.tu.tucloudpicturebackend.model.dto.picture.PictureQueryRequest;
 import com.tu.tucloudpicturebackend.model.dto.picture.PictureReviewRequest;
+import com.tu.tucloudpicturebackend.model.dto.picture.PictureUploadByBatchRequest;
 import com.tu.tucloudpicturebackend.model.dto.picture.PictureUploadRequest;
 import com.tu.tucloudpicturebackend.model.entity.Picture;
 import com.tu.tucloudpicturebackend.model.entity.User;
@@ -25,10 +26,16 @@ import com.tu.tucloudpicturebackend.model.vo.UserVO;
 import com.tu.tucloudpicturebackend.service.PictureService;
 import com.tu.tucloudpicturebackend.service.UserService;
 import com.tu.tucloudpicturebackend.utils.ThrowsUtils;
+import lombok.extern.slf4j.Slf4j;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
+import java.io.IOException;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -36,6 +43,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         implements PictureService {
 
@@ -94,7 +102,13 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
 
         // 拷贝对象属性
         Picture picture = BeanUtil.copyProperties(uploadPictureResult, Picture.class);
-        picture.setName(uploadPictureResult.getPicName());
+
+        // 设置批量上传图片的名称，防止抓取的图片名称乱七八糟
+        String picName = uploadPictureResult.getPicName();
+        if (pictureUploadRequest != null && StrUtil.isNotBlank(pictureUploadRequest.getPicName())) {
+            picName = pictureUploadRequest.getPicName();
+        }
+        picture.setName(picName);
         picture.setUserId(loginUser.getId());
         // 设置审核参数
         fillReviewParams(picture, loginUser);
@@ -195,7 +209,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
 
     @Override
     public void doPictureReview(PictureReviewRequest pictureReviewRequest, User loginUser) {
-        ThrowsUtils.throwIf(pictureReviewRequest == null , ErrorCode.PARAMS_ERROR, "请求参数为空");
+        ThrowsUtils.throwIf(pictureReviewRequest == null, ErrorCode.PARAMS_ERROR, "请求参数为空");
         Long pictureId = pictureReviewRequest.getId();
         PictureReviewStatusEnum reviewStatusEnum = PictureReviewStatusEnum.getEnumByValue(pictureReviewRequest.getReviewStatus());
         if (pictureId == null || reviewStatusEnum == null || pictureReviewRequest.getReviewStatus().equals(PictureReviewStatusEnum.REVIEWING.getValue())) {
@@ -227,6 +241,62 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         } else { // 待审核
             picture.setReviewStatus(PictureReviewStatusEnum.REVIEWING.getValue());
         }
+    }
+
+    @Override
+    public int uploadPictureByBatch(PictureUploadByBatchRequest pictureUploadByBatchRequest, User loginUser) {
+        ThrowsUtils.throwIf(pictureUploadByBatchRequest == null, ErrorCode.PARAMS_ERROR, "请求参数为空");
+        String searchText = pictureUploadByBatchRequest.getSearchText();
+        Integer count = pictureUploadByBatchRequest.getCount();
+        ThrowsUtils.throwIf(count > 30, ErrorCode.PARAMS_ERROR, "最多30条");
+        String url = String.format("https://cn.bing.com/images/async?q=%s&mmasync=1", searchText);
+        Document document = null;
+        try {
+            document = Jsoup.connect(url).get();
+        } catch (IOException e) {
+            log.error("获取页面失败", e);
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "获取页面失败");
+        }
+        // 图片最外层的div 防止多个 取第一个
+        Element div = document.getElementsByClass("dgControl").first();
+        ThrowsUtils.throwIf(ObjUtil.isNull(div), ErrorCode.OPERATION_ERROR, "获取元素失败");
+        Elements imgElementList = div.select("img.mimg");
+        // 筛选出所有图片的url地址
+        List<String> imgSrcList = imgElementList.stream().map(x -> x.attr("src")).collect(Collectors.toList());
+        // 名称前缀为空等于搜索关键字
+        String namePrefix = pictureUploadByBatchRequest.getNamePrefix();
+        if (StrUtil.isBlank(namePrefix)) {
+            namePrefix = searchText;
+        }
+        // 记录上传成功的图片
+        int uploadSuccessPicture = 0;
+        for (String src : imgSrcList) {
+            if (StrUtil.isBlank(src)) {
+                log.info("当前链接为空，跳过：{}", src);
+                continue;
+            }
+            // 除去所有图片url中?后面的宽高等一些限制
+            int startQuestionMarkIndex = src.indexOf("?");
+            if (startQuestionMarkIndex > -1) {
+                src = src.substring(0, startQuestionMarkIndex);
+            }
+            // 上传图片
+            try {
+                PictureUploadRequest pictureUploadRequest = new PictureUploadRequest();
+                pictureUploadRequest.setPicName(namePrefix + (uploadSuccessPicture + 1));
+                PictureVO pictureVO = uploadPicture(src, pictureUploadRequest, loginUser);
+                log.info("上传图片成功，图片id：{}", pictureVO.getId());
+                uploadSuccessPicture ++;
+            } catch (Exception e) {
+                log.error("上传图片失败");
+                continue;
+            }
+            // 上传不超过 设置上传的图片数量
+            if (uploadSuccessPicture >= count) {
+                break;
+            }
+        }
+        return uploadSuccessPicture;
     }
 }
 
