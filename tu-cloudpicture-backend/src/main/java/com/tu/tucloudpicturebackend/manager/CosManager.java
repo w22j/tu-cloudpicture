@@ -1,5 +1,6 @@
 package com.tu.tucloudpicturebackend.manager;
 
+import cn.hutool.core.io.FileUtil;
 import com.qcloud.cos.COSClient;
 import com.qcloud.cos.model.COSObject;
 import com.qcloud.cos.model.GetObjectRequest;
@@ -11,6 +12,8 @@ import org.springframework.stereotype.Component;
 
 import javax.annotation.Resource;
 import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 
 @Component
 public class CosManager {
@@ -49,8 +52,17 @@ public class CosManager {
         PutObjectRequest putObjectRequest = new PutObjectRequest(cosClientConfig.getBucket(), key, file);
         // 对图片的处理
         PicOperations picOperations = new PicOperations();
-        // 1：返回原图信心
+        // 1：返回原图信息
         picOperations.setIsPicInfo(1);
+        // 上传时压缩图片变为webp格式
+        List<PicOperations.Rule> rules = new ArrayList<>();
+        String webpKey = FileUtil.mainName(key) + ".webp";
+        PicOperations.Rule rule = new PicOperations.Rule();
+        rule.setBucket(cosClientConfig.getBucket());
+        rule.setFileId(webpKey);
+        rule.setRule("imageMogr2/format/webp");
+        rules.add(rule);
+        picOperations.setRules(rules);
         putObjectRequest.setPicOperations(picOperations);
         return cosClient.putObject(putObjectRequest);
     }
