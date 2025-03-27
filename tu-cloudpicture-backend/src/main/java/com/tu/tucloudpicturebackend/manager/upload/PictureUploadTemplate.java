@@ -59,9 +59,14 @@ public abstract class PictureUploadTemplate {
             // 获取处理后的图片信息（压缩）
             List<CIObject> ciObjects = putObjectResult.getCiUploadResult().getProcessResults().getObjectList();
             if (CollUtil.isNotEmpty(ciObjects)) {
-                // 一次只上传一张图 所以可以取0
-                CIObject ciObject = ciObjects.get(0);
-                return getReturnResult(originalFileName, ciObject);
+                // 按顺序设置的规则 按顺序取
+                CIObject compressCiObject = ciObjects.get(0);
+                // 缩略图默认等于压缩图
+                CIObject thumbnailCiObject = compressCiObject;
+                if (ciObjects.size() > 1) {
+                    thumbnailCiObject = ciObjects.get(1);
+                }
+                return getReturnResult(originalFileName, compressCiObject, thumbnailCiObject);
             }
             return getReturnResult(imageInfo, uploadFilePath, originalFileName, file);
         } catch (Exception e) {
@@ -121,24 +126,26 @@ public abstract class PictureUploadTemplate {
 
 
     /**
-     * 封装返回结果对象（根据数据万象处理后的压缩图片信息）
+     * 封装返回结果对象（根据数据万象处理后的片信息）
      * @param originalFileName
-     * @param ciObject
+     * @param compressCiObject 压缩信息
+     * @param thumbnaliCiObject 缩略信息
      * @return
      */
-    private UploadPictureResult getReturnResult(String originalFileName, CIObject ciObject) {
+    private UploadPictureResult getReturnResult(String originalFileName, CIObject compressCiObject, CIObject thumbnaliCiObject) {
         // 计算宽高
-        int picWidth = ciObject.getWidth();
-        int picHeight = ciObject.getHeight();
+        int picWidth = compressCiObject.getWidth();
+        int picHeight = compressCiObject.getHeight();
         double picScale = NumberUtil.round(picWidth * 1.0 / picHeight, 2).doubleValue();
         UploadPictureResult uploadPictureResult = new UploadPictureResult();
-        uploadPictureResult.setUrl(cosClientConfig.getHost() + "/" + ciObject.getKey()); // 设置图片地址为压缩后的地址
+        uploadPictureResult.setUrl(cosClientConfig.getHost() + "/" + compressCiObject.getKey()); // 设置图片地址为压缩后的地址
         uploadPictureResult.setPicName(FileUtil.mainName(originalFileName));
-        uploadPictureResult.setPicSize(ciObject.getSize().longValue());
+        uploadPictureResult.setPicSize(compressCiObject.getSize().longValue());
         uploadPictureResult.setPicWidth(picWidth);
         uploadPictureResult.setPicHeight(picHeight);
         uploadPictureResult.setPicScale(picScale);
-        uploadPictureResult.setPicFormat(ciObject.getFormat());
+        uploadPictureResult.setPicFormat(compressCiObject.getFormat());
+        uploadPictureResult.setThumbnailUrl(cosClientConfig.getHost() + "/" + thumbnaliCiObject.getKey()); // 设置图片地址为缩略后的地址
         return uploadPictureResult;
     }
 
