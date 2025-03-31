@@ -13,11 +13,13 @@ import com.tu.tucloudpicturebackend.constant.UserConstant;
 import com.tu.tucloudpicturebackend.exception.BusinessException;
 import com.tu.tucloudpicturebackend.model.dto.picture.*;
 import com.tu.tucloudpicturebackend.model.entity.Picture;
+import com.tu.tucloudpicturebackend.model.entity.Space;
 import com.tu.tucloudpicturebackend.model.entity.User;
 import com.tu.tucloudpicturebackend.model.enums.PictureReviewStatusEnum;
 import com.tu.tucloudpicturebackend.model.vo.PictureTagCategory;
 import com.tu.tucloudpicturebackend.model.vo.PictureVO;
 import com.tu.tucloudpicturebackend.service.PictureService;
+import com.tu.tucloudpicturebackend.service.SpaceService;
 import com.tu.tucloudpicturebackend.service.UserService;
 import com.tu.tucloudpicturebackend.utils.ResultUtils;
 import com.tu.tucloudpicturebackend.utils.ThrowsUtils;
@@ -55,6 +57,9 @@ public class PictureController {
     @Resource
     private StringRedisTemplate stringRedisTemplate;
 
+    @Resource
+    private SpaceService spaceService;
+
     /**
      * 本地缓存
      */
@@ -91,17 +96,7 @@ public class PictureController {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         User loginUser = userService.getLoginUser(request);
-        long id = deleteRequest.getId();
-        // 判断是否存在  
-        Picture oldPicture = pictureService.getById(id);
-        ThrowsUtils.throwIf(oldPicture == null, ErrorCode.NOT_FOUND_ERROR);
-        // 仅本人或管理员可删除  
-        if (!oldPicture.getUserId().equals(loginUser.getId()) && !userService.isAdmin(loginUser)) {
-            throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
-        }
-        // 操作数据库  
-        boolean result = pictureService.removeById(id);
-        ThrowsUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
+        pictureService.deletePicture(deleteRequest.getId(), loginUser);
         return ResultUtils.success(true);
     }
 
@@ -156,6 +151,11 @@ public class PictureController {
         // 查询数据库  
         Picture picture = pictureService.getById(id);
         ThrowsUtils.throwIf(picture == null, ErrorCode.NOT_FOUND_ERROR);
+        // 仅有空间管理员可以查看
+        if (picture.getSpaceId() != null) {
+            User loginUser = userService.getLoginUser(request);
+            pictureService.checkPictureAuth(loginUser, picture);
+        }
         // 获取封装类  
         return ResultUtils.success(pictureService.getPictureVO(picture, request));
     }
@@ -184,8 +184,22 @@ public class PictureController {
         long size = pictureQueryRequest.getPageSize();
         // 限制爬虫  
         ThrowsUtils.throwIf(size > 20, ErrorCode.PARAMS_ERROR);
-        // 用户只能查看已审核通过的图片
-        pictureQueryRequest.setReviewStatus(PictureReviewStatusEnum.PASS.getValue());
+        // 空间权限校验
+        Long spaceId = pictureQueryRequest.getSpaceId();
+        if (spaceId == null) { // 公共图库
+            // 用户只能查看已审核通过的图片
+            pictureQueryRequest.setReviewStatus(PictureReviewStatusEnum.PASS.getValue());
+            pictureQueryRequest.setNullSpaceId(true);
+        } else {
+            // 私有空间 只能空间管理员查看 所属者
+            User loginUser = userService.getLoginUser(request);
+            Space space = spaceService.getById(spaceId);
+            ThrowsUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR, "空间不存在");
+            if (!loginUser.getId().equals(space.getUserId())) {
+                throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "没有空间权限");
+            }
+        }
+
         // 查询数据库  
         Page<Picture> picturePage = pictureService.page(new Page<>(current, size),
                 pictureService.getQueryWrapper(pictureQueryRequest));
@@ -197,6 +211,7 @@ public class PictureController {
      * 分页获取图片列表（封装类，缓存查询）
      */
     @PostMapping("/list/page/vo/cache")
+    @Deprecated // 考虑到私有空间的图片更新频率不好把握，暂时不使用或修改 改为已废弃
     public BaseResponse<Page<PictureVO>> listPictureVOByPageWithCache(@RequestBody PictureQueryRequest pictureQueryRequest,
                                                              HttpServletRequest request) {
         long current = pictureQueryRequest.getPageNo();
@@ -260,9 +275,7 @@ public class PictureController {
         Picture oldPicture = pictureService.getById(id);
         ThrowsUtils.throwIf(oldPicture == null, ErrorCode.NOT_FOUND_ERROR);
         // 仅本人或管理员可编辑  
-        if (!oldPicture.getUserId().equals(loginUser.getId()) && !userService.isAdmin(loginUser)) {
-            throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
-        }
+        pictureService.checkPictureAuth(loginUser, oldPicture);
         // 设置审核参数 （修改图片重新进入待审核）
         pictureService.fillReviewParams(picture, userService.getLoginUser(request));
         // 操作数据库  

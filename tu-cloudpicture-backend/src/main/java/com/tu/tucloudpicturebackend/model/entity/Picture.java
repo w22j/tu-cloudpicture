@@ -118,6 +118,12 @@ public class Picture implements Serializable {
     private Date reviewTime;
 
     /**
+     * 空间id（为空表示公共空间）
+     */
+    @TableField(value = "spaceId")
+    private Long spaceId;
+
+    /**
      * 创建时间
      */
     @TableField(value = "createTime")
