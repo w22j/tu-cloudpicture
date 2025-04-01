@@ -3,15 +3,13 @@ package com.tu.tucloudpicturebackend.service;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
-import com.tu.tucloudpicturebackend.model.dto.picture.PictureQueryRequest;
-import com.tu.tucloudpicturebackend.model.dto.picture.PictureReviewRequest;
-import com.tu.tucloudpicturebackend.model.dto.picture.PictureUploadByBatchRequest;
-import com.tu.tucloudpicturebackend.model.dto.picture.PictureUploadRequest;
+import com.tu.tucloudpicturebackend.model.dto.picture.*;
 import com.tu.tucloudpicturebackend.model.entity.Picture;
 import com.tu.tucloudpicturebackend.model.entity.User;
 import com.tu.tucloudpicturebackend.model.vo.PictureVO;
 
 import javax.servlet.http.HttpServletRequest;
+import java.util.List;
 
 public interface PictureService extends IService<Picture> {
 
@@ -77,4 +75,21 @@ public interface PictureService extends IService<Picture> {
      * @param loginUser
      */
     void deletePicture(long id, User loginUser);
+
+    /**
+     * 查询色调类似的图片
+     * @param spaceId
+     * @param picColor
+     * @param loginUser
+     * @return
+     */
+    List<PictureVO> searchPictureByColor(Long spaceId, String picColor, User loginUser);
+
+    /**
+     * 批量编辑图片
+     *
+     * @param pictureEditByBatchRequest
+     * @param loginUser
+     */
+    void editPictureByBatch(PictureEditByBatchRequest pictureEditByBatchRequest, User loginUser);
 }

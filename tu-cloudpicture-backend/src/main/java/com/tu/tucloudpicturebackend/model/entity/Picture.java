@@ -88,10 +88,22 @@ public class Picture implements Serializable {
     private String picFormat;
 
     /**
+     * 图片主色调
+     */
+    @TableField(value = "picColor")
+    private String picColor;
+
+    /**
      * 创建用户 id
      */
     @TableField(value = "userId")
     private Long userId;
+
+    /**
+     * 空间id（为空表示公共空间）
+     */
+    @TableField(value = "spaceId")
+    private Long spaceId;
 
     /**
      * 审核状态：0-待审核; 1-通过; 2-拒绝
@@ -116,12 +128,6 @@ public class Picture implements Serializable {
      */
     @TableField(value = "reviewTime")
     private Date reviewTime;
-
-    /**
-     * 空间id（为空表示公共空间）
-     */
-    @TableField(value = "spaceId")
-    private Long spaceId;
 
     /**
      * 创建时间
