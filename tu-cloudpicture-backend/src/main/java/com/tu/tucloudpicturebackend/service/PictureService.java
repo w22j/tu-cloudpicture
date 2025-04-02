@@ -3,6 +3,7 @@ package com.tu.tucloudpicturebackend.service;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.tu.tucloudpicturebackend.api.aliyunai.model.CreateOutPaintingTaskResponse;
 import com.tu.tucloudpicturebackend.model.dto.picture.*;
 import com.tu.tucloudpicturebackend.model.entity.Picture;
 import com.tu.tucloudpicturebackend.model.entity.User;
@@ -92,4 +93,12 @@ public interface PictureService extends IService<Picture> {
      * @param loginUser
      */
     void editPictureByBatch(PictureEditByBatchRequest pictureEditByBatchRequest, User loginUser);
+
+    /**
+     * 创建ai扩图任务
+     * @param createPictureOutPaintingTaskRequest
+     * @param loginUser
+     * @return
+     */
+    CreateOutPaintingTaskResponse createPictureOutPaintingTask(CreatePictureOutPaintingTaskRequest createPictureOutPaintingTaskRequest, User loginUser);
 }

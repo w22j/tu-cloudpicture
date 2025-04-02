@@ -8,6 +8,9 @@ import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.tu.tucloudpicturebackend.api.aliyunai.AliyunAiApi;
+import com.tu.tucloudpicturebackend.api.aliyunai.model.CreateOutPaintingTaskRequest;
+import com.tu.tucloudpicturebackend.api.aliyunai.model.CreateOutPaintingTaskResponse;
 import com.tu.tucloudpicturebackend.common.ErrorCode;
 import com.tu.tucloudpicturebackend.exception.BusinessException;
 import com.tu.tucloudpicturebackend.manager.upload.FilePictureUpload;
@@ -65,6 +68,9 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
 
     @Resource
     private TransactionTemplate transactionTemplate;
+
+    @Resource
+    private AliyunAiApi aliYunAiApi;
 
     @Override
     public void validPicture(Picture picture) {
@@ -497,6 +503,43 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         boolean result = this.updateBatchById(pictureList);
         ThrowsUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
     }
+
+    @Override
+    public CreateOutPaintingTaskResponse createPictureOutPaintingTask(CreatePictureOutPaintingTaskRequest createPictureOutPaintingTaskRequest, User loginUser) {
+        // 获取图片信息
+        Long pictureId = createPictureOutPaintingTaskRequest.getPictureId();
+        Picture picture = Optional.ofNullable(this.getById(pictureId))
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND_ERROR));
+        // 权限校验
+        checkPictureAuth(loginUser, picture);
+        // ai扩图对图片的校验
+        //图像格式：JPG、JPEG、PNG、HEIF、WEBP。
+        final List<String> pictureFormat = Arrays.asList("JPG", "JPEG", "PNG", "HEIF", "WEBP");
+        if (!pictureFormat.contains(picture.getPicFormat().toUpperCase())) {
+            throw new BusinessException("ai扩图的图片格式仅支持 JPG、JPEG、PNG、HEIF、WEBP");
+        }
+        //图像大小：不超过10MB。
+        final long ONE_M = 1024 * 1024L;
+        if (picture.getPicSize() > ONE_M * 10) {
+            throw new BusinessException("ai扩图的图像大小不超过10MB");
+        }
+        //图像单边长度范围：[512, 4096]，单位像素。
+        if (picture.getPicWidth() < 512 || picture.getPicWidth() > 4096) {
+            throw new BusinessException("ai扩图的图像单边长度范围超出限制");
+        }
+        if (picture.getPicHeight() < 512 || picture.getPicHeight() > 4096) {
+            throw new BusinessException("ai扩图的图像单边长度范围超出限制");
+        }
+        // 构造请求参数
+        CreateOutPaintingTaskRequest taskRequest = new CreateOutPaintingTaskRequest();
+        CreateOutPaintingTaskRequest.Input input = new CreateOutPaintingTaskRequest.Input();
+        input.setImageUrl(picture.getUrl());
+        taskRequest.setInput(input);
+        BeanUtil.copyProperties(createPictureOutPaintingTaskRequest, taskRequest);
+        // 创建任务
+        return aliYunAiApi.createOutPaintingTask(taskRequest);
+    }
+
 
     /**
      * nameRule 格式：图片{序号}
