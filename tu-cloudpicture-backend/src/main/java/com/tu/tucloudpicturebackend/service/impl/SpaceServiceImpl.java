@@ -26,13 +26,15 @@ import com.tu.tucloudpicturebackend.service.SpaceUserService;
 import com.tu.tucloudpicturebackend.service.UserService;
 import com.tu.tucloudpicturebackend.utils.ThrowsUtils;
 import org.springframework.beans.BeanUtils;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
@@ -52,6 +54,11 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
 
     @Resource
     private SpaceUserService spaceUserService;
+
+    // 为了方便部署，注释掉分表
+//    @Resource
+//    @Lazy
+//    private DynamicShardingManager dynamicShardingManager;
 
     private static final Map<Long, Object> lockMap = new ConcurrentHashMap<Long, Object>();
 
@@ -101,6 +108,8 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
                         result = spaceUserService.save(spaceUser);
                         ThrowsUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "新增空间成员操作失败");
                     }
+//                    // 创建分表（仅对团队空间生效）为方便部署，暂时不使用
+//                    dynamicShardingManager.createSpacePictureTable(space);
                     return space.getId();
                 });
             } finally { // 释放锁，防止占用资源
