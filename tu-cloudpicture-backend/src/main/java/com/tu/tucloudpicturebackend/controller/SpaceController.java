@@ -7,6 +7,7 @@ import com.tu.tucloudpicturebackend.common.DeleteRequest;
 import com.tu.tucloudpicturebackend.common.ErrorCode;
 import com.tu.tucloudpicturebackend.constant.UserConstant;
 import com.tu.tucloudpicturebackend.exception.BusinessException;
+import com.tu.tucloudpicturebackend.manager.auth.SpaceUserAuthManager;
 import com.tu.tucloudpicturebackend.model.dto.space.*;
 import com.tu.tucloudpicturebackend.model.entity.Space;
 import com.tu.tucloudpicturebackend.model.entity.User;
@@ -40,6 +41,9 @@ public class SpaceController {
 
     @Resource
     private SpaceService spaceService;
+
+    @Resource
+    private SpaceUserAuthManager spaceUserAuthManager;
 
     /**
      * 新增空间
@@ -112,12 +116,17 @@ public class SpaceController {
      */
     @GetMapping("/get/vo")
     public BaseResponse<SpaceVO> getSpaceVOById(long id, HttpServletRequest request) {
+
         ThrowsUtils.throwIf(id <= 0, ErrorCode.PARAMS_ERROR);
-        // 查询数据库  
+        // 查询数据库
         Space space = spaceService.getById(id);
         ThrowsUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR);
-        // 获取封装类  
-        return ResultUtils.success(spaceService.getSpaceVO(space, request));
+        SpaceVO spaceVO = spaceService.getSpaceVO(space, request);
+        User loginUser = userService.getLoginUser(request);
+        List<String> permissionList = spaceUserAuthManager.getPermissionList(space, loginUser);
+        spaceVO.setPermissionList(permissionList);
+        // 获取封装类
+        return ResultUtils.success(spaceVO);
     }
 
     /**

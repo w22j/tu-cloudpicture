@@ -78,6 +78,13 @@ public interface PictureService extends IService<Picture> {
     void deletePicture(long id, User loginUser);
 
     /**
+     * 编辑图片
+     * @param pictureEditRequest
+     * @param loginUser
+     */
+    void editPicture(PictureEditRequest pictureEditRequest, User loginUser);
+
+    /**
      * 查询色调类似的图片
      * @param spaceId
      * @param picColor

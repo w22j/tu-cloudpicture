@@ -35,6 +35,7 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
+import org.springframework.beans.BeanUtils;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -98,10 +99,11 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         if (spaceId != null) {
             Space space = spaceService.getById(spaceId);
             ThrowsUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR, "空间不存在");
-            // 必须空间创建人（管理员）才能上传
-            if (!loginUser.getId().equals(space.getUserId())) {
-                throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "没有空间权限");
-            }
+            // 改为使用统一的权限校验
+//            // 校验是否有空间的权限，仅空间管理员才能上传
+//            if (!loginUser.getId().equals(space.getUserId())) {
+//                throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "没有空间权限");
+//            }
             // 校验额度
             if (space.getTotalCount() >= space.getMaxCount()) {
                 throw new BusinessException(ErrorCode.OPERATION_ERROR, "空间条数不足");
@@ -119,10 +121,11 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         if (pictureId != null) {
             Picture oldPicture = getById(pictureId);
             ThrowsUtils.throwIf(oldPicture == null, ErrorCode.OPERATION_ERROR, "图片数据不存在");
-            // 仅本人或者管理员才能修改上传的图片
-            if (!oldPicture.getUserId().equals(loginUser.getId()) && userService.isAdmin(loginUser)) {
-                throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "仅有本人或管理员才能修改上传的图片");
-            }
+            // 改为使用统一的权限校验
+//            // 仅本人或者管理员才能修改上传的图片
+//            if (!oldPicture.getUserId().equals(loginUser.getId()) && userService.isAdmin(loginUser)) {
+//                throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "仅有本人或管理员才能修改上传的图片");
+//            }
             // 更新时 检查空间是否一致
             if (spaceId == null) {
                 if (oldPicture.getSpaceId() != null) {
@@ -396,8 +399,8 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         // 判断是否存在
         Picture oldPicture = this.getById(pictureId);
         ThrowsUtils.throwIf(oldPicture == null, ErrorCode.NOT_FOUND_ERROR);
-        // 校验权限
-        checkPictureAuth(loginUser, oldPicture);
+        // 校验权限，已经改为使用注解鉴权
+//        checkPictureAuth(loginUser, oldPicture);
         // 开启事务
         transactionTemplate.execute(status -> {
             // 操作数据库
@@ -416,6 +419,30 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             return true;
         });
         // todo 删除时可以删除存储桶上的图片， 空间图片额度限制实际上多出一点也无关紧要SpaceLevel
+    }
+
+    @Override
+    public void editPicture(PictureEditRequest pictureEditRequest, User loginUser) {
+        // 在此处将实体类和 DTO 进行转换
+        Picture picture = new Picture();
+        BeanUtils.copyProperties(pictureEditRequest, picture);
+        // 注意将 list 转为 string
+        picture.setTags(JSONUtil.toJsonStr(pictureEditRequest.getTags()));
+        // 设置编辑时间
+        picture.setEditTime(new Date());
+        // 数据校验
+        this.validPicture(picture);
+        // 判断是否存在
+        long id = pictureEditRequest.getId();
+        Picture oldPicture = this.getById(id);
+        ThrowsUtils.throwIf(oldPicture == null, ErrorCode.NOT_FOUND_ERROR);
+        // 校验权限，已经改为使用注解鉴权
+        // checkPictureAuth(loginUser, oldPicture);
+        // 补充审核参数
+        this.fillReviewParams(picture, loginUser);
+        // 操作数据库
+        boolean result = this.updateById(picture);
+        ThrowsUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
     }
 
     @Override
@@ -510,8 +537,8 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         Long pictureId = createPictureOutPaintingTaskRequest.getPictureId();
         Picture picture = Optional.ofNullable(this.getById(pictureId))
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND_ERROR));
-        // 权限校验
-        checkPictureAuth(loginUser, picture);
+        // 校验权限，已经改为使用注解鉴权
+//        checkPictureAuth(loginUser, oldPicture);
         // ai扩图对图片的校验
         //图像格式：JPG、JPEG、PNG、HEIF、WEBP。
         final List<String> pictureFormat = Arrays.asList("JPG", "JPEG", "PNG", "HEIF", "WEBP");
